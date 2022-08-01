@@ -1,0 +1,14 @@
+digraph re {
+	node [shape=circle];
+
+	s [label="" style="invis" shape="point"];
+	1 [shape=doublecircle];
+
+	s -> 0 [label="start"];
+
+	0 -> 1 [label="A-Z, a-z, _"];
+
+	1 -> 1 [label="A-Z, a-z, _, 0-9" tailport=ne headport=nw];
+
+	{ rank=same; s 0 1 }
+}

@@ -1,0 +1,13 @@
+Parsing and interpretation with goyacc and closures (lecture)
+
+Copyright (c) 2022 Vadim Vygonets <vadik@vygo.net>
+
+To see the slides, run:
+
+go install golang.org/x/tools/cmd/goyacc@latest
+go install golang.org/x/tools/cmd/present@latest
+make present
+
+The slides will be available at:
+
+http://localhost:3999

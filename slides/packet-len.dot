@@ -1,0 +1,55 @@
+digraph re {
+	newrank=true
+	compound=true
+
+	node [shape=circle];
+
+	s, h0, d0 [label="" style="invis" shape="point"];
+	x [label="..."];
+	h0, h1, h2, h3, h4, h5 [label="..."];
+	r0, r1, r2, r3, r4, r5 [label="..."];
+	r0 [color=blue];
+	//d0, d1, d2, d3, d4, d5 [color=red];
+	r0 [label="repeat 65536 times" shape=rarrow];
+	// d1 [label="-5"];
+	// d2 [label="-4"];
+	// d3 [label="-3"];
+	// d4 [label="-2"];
+	// d5 [label="-1"];
+	hdrs [label="header fields following len" shape=larrow];
+	e [shape=doublecircle];
+	//subgraph cluster_data { rank=same; newrank=true; style=invis; data d1 d2 d3 d4 d5 e }
+
+	s -> 0 [label="start"];
+	0 -> x -> len
+	//data->h1 [ltail=cluster_h0 lhead=cluster_h1] //[style=invis]
+	//data->h1 [ltail=cluster_h0 lhead=cluster_h1] //[style=invis]
+
+	//len -> h0 -> d0 -> d1 // [style=invis]
+
+	len -> h0 -> r0 -> d0 [style=invis]
+	len -> h1 [label="5"]
+	len -> h2 [label="4"]
+	len -> h3 [label="3"]
+	len -> h4 [label="2"]
+	len -> h5 [label="1"]
+	len -> hdrs [style=invis]
+	d0 -> d1 [style=invis]
+	d1 -> d2 -> d3 -> d4 -> d5 -> e
+	subgraph cluster_h0 { style=invis; h0 r0 d0 }
+	subgraph cluster_h1 { color=blue; h1 r1 d1 }
+	subgraph cluster_h2 { style=invis; h2 r2 d2 }
+	subgraph cluster_h3 { style=invis; h3 r3 d3 }
+	subgraph cluster_h4 { style=invis; h4 r4 d4 }
+	subgraph cluster_h5 { style=invis; h5 r5 d5 }
+	//h0 -> d0 [style=invis]
+	h1 -> r1 -> d1
+	h2 -> r2 -> d2
+	h3 -> r3 -> d3
+	h4 -> r4 -> d4
+	h5 -> r5 -> d5
+
+	{ rank=same; s 0 x len }
+	{ rank=same; h0 h1 h2 h3 h4 h5 hdrs }
+	{ rank=same; d0 d1 d2 d3 d4 d5 e }
+}

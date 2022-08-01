@@ -1,0 +1,12 @@
+digraph A {
+	node [shape=box]
+	rank=same; newrank=true
+
+	in         -> lexer      [label="input  "]
+	lexer      -> parser     [label="tokens "]
+	parser     -> processing [label=" structured data "]
+	processing -> out        [label="output "]
+
+	in, out [label="" style="invis" shape="point"]
+	subgraph cluster_parsing { color="blue"; lexer parser }
+}

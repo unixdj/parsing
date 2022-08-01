@@ -1,0 +1,12 @@
+digraph re {
+
+        node [shape=box];
+
+        s1 [label="1"]
+        s2 [label="/"]
+        s3 [label="2"]
+        s4 [label="*"]
+        s5 [label="3"]
+
+        { rank=same; s1 s2 s3 s4 s5 }
+}

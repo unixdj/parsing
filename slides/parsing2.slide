@@ -1,0 +1,922 @@
+# Parsing and interpretation with goyacc and closures (continued)
+
+Vadim Vygonets
+August 2022
+
+## stage 4: Error handling
+
+## stage 4: functions
+
+Let's make the `fun` return `(int, error)`:
+
+.code ../stage4/main.go /^type fun/
+
+And convert `varMap.Get()` and `list.Run()` to return errors:
+
+.code ../stage4/main.go /^func.*varMap.*Get/,/^}/
+.code ../stage4/main.go /^func.*list.*Run/,/^}/
+
+//We'll need one more error.
+
+//.code ../stage4/main.go /^var ErrZeroDivision/
+
+## stage 4: functions
+
+To avoid boilerplate, let's write a function
+that will wrap `func(int, int) (int, error)` in a closure
+calling `left` and `right` operands and propagating errors.
+
+.code ../stage4/main.go /^func newFun/,/^}/
+
+## stage 4: parser
+
+Now creating arithmetic `fun`s is a bit simpler:
+
+.code ../stage4/parse.y /^expr://\+/,/^\|/-1
+
+Division is a little more elaborate:
+
+.code ../stage4/parse.y /^expr://\//,/^\|/-1
+
+## stage 4: for loops
+
+`for` loops are a mess though:
+
+.code ../stage4/parse.y /^\| *FOR stmt2/,/^$/
+
+## stage 4: blocks
+
+To make `for` loops simpler, I also changed `block` to be a list
+and moved it under `stmts`.
+
+.code ../stage4/parse.y /^\| *stmts block$/,/.//^$/
+.code ../stage4/parse.y /^block:$/,/.//^$/
+
+## stage 4: demo time...
+
+.play -edit ../go/stage4.go /^func main//if true/+1,/return$/
+
+## stage 5: Interactive calculator
+
+## stage 5: interactive calculator
+
+An interactive calculator such as `bc(1)` receives input lines and runs them.
+This essentially means sending `$end` after each input line
+and running `yyParse` in a loop.
+There are several complications though.
+
+- We should not send `$end` within a block,
+  which requires us to track `'{'` and `'}'` tokens.
+- After sending `$unk` we should skip the rest of the line.
+- Parsing can fail at any point, so the lexer should receive parse status
+  and skip the rest of the line on failures.
+  - Unless we're at the beginning of a line, which means the error is
+    on the previous line.
+- We should do this only in interactive sessions.
+- We should distinguish between `$end` and EOF.
+
+## stage 5: end of file
+
+To handle EOF we introduce the notion of a command token,
+a piece of code that is sent to the parser in its own parsing session.
+
+.code ../stage5/parse.y /^%token.*CMD/
+.code ../stage5/parse.y /^top:/,/.//^$/
+
+The `EOF` command will set a boolean variable
+that the parse loop will check.
+
+.code ../stage5/main.go /^func cmdEOF/,/^}/
+
+## stage 5: input loop
+
+Let's separate the input into its own goroutine
+sending input lines to the lexer on a channel.
+It will signal EOF by sending an empty string,
+and replace empty lines with a string containing a single space.
+
+.code ../stage5/main.go /^func.*yyLex.*input/,/^}/
+
+## stage 5: parse loop
+
+The parser will run `yyParse` in a loop,
+sending its return value to a channel, until `eof`.
+
+.code ../stage5/main.go /^func.*yyLex.*parse/,/^}/
+
+## stage 5: parser status
+
+The lexer will try to receive the parser status
+when operating on other channels.
+
+.code ../stage5/main.go /lexOK *=/-2,/^\)/
+
+## stage 5: sendToken()
+
+A parse error may happen after any token,
+therefore we must be ready to receive the parse status in `sendToken()`.
+
+Go `select` statement will run one of the two alternatives,
+depending on which channel becomes ready first.
+It will either receive the parse status (if parser sent it),
+or send the token (if `Lex()` is called).
+
+In the first case, the function may be called later for the same token.
+We'll introduce a new member to `yyLex` to hold it, called `next`.
+
+.code ../stage5/main.go /^func.*yyLex.*sendToken/,/^}/
+
+## stage 5: sendToken() helpers
+
+A couple of helper functions: one to send an arbitrary token,
+
+.code ../stage5/main.go /^func.*yyLex.*send\(/,/^}/
+
+and another to send `$end` and wait for the parser status.
+
+.code ../stage5/main.go /^func.*yyLex.*sendEnd/,/^}/
+
+## stage 5: getLine()
+
+Another convenient point to receive parse status would be
+while waiting for input.
+
+We'll put the input string in the `yyLex` structure too,
+to avoid passing it around.
+
+.code ../stage5/main.go /^func.*yyLex.*getLine/,/^}/
+
+## stage 5: nextToken()
+
+We'll change `nextToken()` to use the new `yyLex` members and return `bool`.
+
+.code ../stage5/main.go /^func.*yyLex.*nextToken/,/return/+1
+
+    [...]
+
+.code ../stage5/main.go /^func.*yyLex.*nextToken//tok.s, yy.s =/,/^}$/
+
+## stage 5: yyLex
+
+The lexer struct suddently has a lot of members.
+
+.code ../stage5/main.go /^type yyLex/,/^}$/
+
+This requires an initialisation function.
+
+## stage 5: newLexer()
+
+Note that the channels are created unbuffered
+to keep the goroutines synchronised.
+This is especially important for the `token` channel `c`
+during interactive sessions,
+so that when parsing fails there aren't a bunch of tokens queued up.
+
+.code ../stage5/main.go /^func newLexer/,/^}$/
+
+`isatty` is a package telling whether a file descriptor
+***is*** ***a*** ***t***ele***ty***pe.
+
+.code ../stage5/main.go /isatty/
+
+## This is a teletype, BTW.
+
+.image tty.jpeg _ 700
+
+>     Bundesarchiv Bild 183-2008-0516-500, Fernschreibmaschine mit Telefonanschluss
+
+## stage 5: lexer
+
+Now we're ready to start looking at the lexer.
+
+I tried writing it as a state machine,
+but serial code is easier to understand.
+
+## stage 5: lexer
+
+Process lines in a loop.
+
+If a parse status is received while waiting for input, reset the lexer.
+We do it with a `goto`, because `goto` rules.
+
+On end of file we `break`.
+
+.code ../stage5/main.go /^func.*yyLex.*run/,/for//}$/
+
+## stage 5: lexer
+
+While there are tokens on the input line, send them.
+In an interactive session, if parser status is received
+while trying to send the first token on the input line,
+try again.
+
+.code ../stage5/main.go /^func.*yyLex.*run//first = true/,/switch/-1
+
+## stage 5: lexer
+
+What did we just send?
+
+If we just told the parser to stop, wait for the status and reset.
+
+For curly braces, keep track of the nesting depth.
+
+.code ../stage5/main.go /^func.*yyLex.*run//switch/,/first = false/+1
+
+## stage 5: lexer
+
+We have reached the end of the line.
+
+If the last token is `$end` or `$unk`,
+this means we have sent no tokens in this session.
+Go straight to reading the next input line.
+
+Unless the last token was a semicolon, inject one.
+Reset if parser stopped.
+
+.code ../stage5/main.go /^func.*yyLex.*run//switch//first = false/+2,/tty/-1
+
+## stage 5: lexer
+
+In interactive sessions, send `$end` if the depth is zero.
+Negative depth should cause parse errors,
+but it's more robust to handle it here too.
+
+`sendEnd()` returns the parse status (it never returns `lexOK`).
+If parsing failed, reset.
+
+Then loop back to reading the next input line.
+
+.code ../stage5/main.go /^func.*yyLex.*run//depth <= 0/,/reset:/-1
+
+## stage 5: lexer
+
+How do we `reset`?
+
+In non-interactive sessions we don't.  We just quit.
+It's a parse error in a file.
+
+In interactive session we reset the depth and keep going
+(from the next line).
+
+.code ../stage5/main.go /^func.*yyLex.*run//reset:/,/depth//}$/
+
+## stage 5: lexer
+
+End of file!
+End the current parse session and send the `EOF` command in its own session.
+
+.code ../stage5/main.go /^func.*yyLex.*run//reset://depth//}$/+1,/^}$
+
+## stage 5: demo?  does anybody care at this point?
+
+.play -edit ../go/stage5.go /^func main//if true/+1,/return$/
+
+## stage 6: Floats and more operators
+
+## stage 6: floats
+
+Let's have some floating point numbers.
+
+.code ../stage6/main.go /^type number/,/^}$/
+.code ../stage6/main.go /^type fun/
+
+This is nice, but the `yacc` code in the last stage was a bit tiresome.
+I can't imagine what it would be like to add floats to it.
+
+Let's backtrack a little and start with reducing boilerplate.
+
+## stage 6a: Binary integer operators
+
+## stage 6a: binary integer operators
+
+All the parser blocks for binary operators are the same,
+only the code is different.
+
+But operators _are_ code, right?
+
+Let's treat them as such.
+
+.code ../stage6a/main.go /^type op /
+
+We'll pass them to the parser.
+
+.code ../stage6a/parse.y /^%union/,/^}/
+
+## stage 6a: binary integer operators: a better parser?
+
+Assign this type to tokens and rules...
+
+.code ../stage6a/parse.y /^%token <op>/
+
+.code ../stage6a/parse.y /^%type <op>/
+
+Change the order of parameters in `newFun`,
+and we can simplify the parser:
+
+.code ../stage6a/parse.y /^expr:$/,/^op1:/
+
+## stage 6a: newFun
+
+This is what newFun looks like now:
+
+.code ../stage6a/main.go /^func newFun/,/^}/
+
+## stage 6a: binary integer operators: implementation
+
+Helps to have a map!
+
+.code ../stage6a/main.go /^type opMap/,/^}$/
+
+## stage 6a: binary integer operators: passing it on
+
+Now we can add the `op` to the `token` structure and pass it to the parser.
+
+`yyLex.nextToken`:
+
+.code ../stage6a/main.go /^func.*nextToken//case strings.Index/,/}/
+
+## stage 6b: Floating point
+
+## stage 6b: floating point
+
+We already have `number` and `fun`:
+
+.code ../stage6b/main.go /^type number/,/^}$/
+.code ../stage6b/main.go /^type fun/
+
+Let's print numbers.
+
+.code ../stage6b/main.go /^func.*number.*String/,/^}$/
+
+## stage 6b: floating point: nextToken
+
+Now we need to add them to `yyLex.nextToken`.
+We'll accept `'.'` and try to parse the number as `uint` and as `float64`.
+
+.code ../stage6b/main.go /^func.*nextToken//case.*9':/,/case/-1
+
+## stage 6b: floating point
+
+Let's define the simplest `op` type for binary operators,
+and the types of functions we'll build it from:
+
+.code ../stage6b/main.go /binIntFun *func/-3/^type/,/^\)$/
+
+Let's put `newFun` under `op`, so that we can all it like this:
+
+.code ../stage6b/parse.y /^expr:$/,/^op1:/
+
+## stage 6b: floating point: op.NewFun
+
+The closure it returns will start as before,
+by calling the operands and checking errors.
+
+.code ../stage6b/main.go /^func .*op.*NewFun/,/switch/-1
+
+Now we have to choose which function to call
+according to the types of the operands.
+
+But what if the types of the arguments don't match?
+
+## stage 6b: floating point: op.NewFun
+
+Cast them to the same type.
+
+If both operands are `int`, we'll call `o.i`.
+
+Otherwise we'll call `o.f`,
+converting one of the operands to `float64` if required.
+
+.code ../stage6b/main.go /^func .*op.*NewFun//switch/,/^}$/
+
+## stage 6b: floating point: opMap
+
+Now we only have to change `int` to `number` in many places,
+including `opMap`,
+which now has entries like this:
+
+.code ../stage6b/main.go /^type opMap/
+
+
+.code ../stage6b/main.go /^var ops =//'%'/,/^\t},$/
+
+## stage 6b: demo
+
+.play -edit ../go/stage6b.go /^func main/,/^}/
+
+## stage 6: Floats and ops
+
+## stage 6: floats and ops
+
+Ok, so now we have binary integer and floating point operators.
+But we also need:
+
+- operators that can be unary or binary (like `'-'`)
+
+To have usable `for` loops it'll be nice to have:
+
+- comparison and logic operators that return `int` for any operands
+  (`'<'`, `==`, `&&`)
+- same but unary (`'!'`)
+- fancy assignment operators like `+=`,
+  perhaps `++` and `--`
+
+If we want all operators that Go has, we also need:
+
+- operators that do only `int`, like `'^'` and `<<`
+
+The only operators that need internal error checking are `'/'` and `'%'`,
+so it would also be nice not to have to return errors from every function.
+
+## stage 6: op type
+
+We need a more general `op` type.
+But what should it be?
+
+Hmm.
+
+Maybe one of the Go authors can help us?
+
+> _Is a sortable array an array that sorts
+> or a sorter represented by an array? [...]_
+>
+> _I believe that's a preposterous way to think about programming.
+> What matters isn't the ancestor relations between things
+> but what they can do for you._
+> > > — Rob Pike, _Less is exponentially more_, 2012
+
+Thanks, Rob.  I have seen the light, and I shall define a proper type.
+
+## stage 6: the interface
+
+At this point we all know what a binary `op` should do for us.
+This.
+
+.code ../stage6/main.go /^type op /,/^}$/
+
+What about unary operators?
+
+- We can define another interface.
+  But this sounds like it would complicate operators
+  that could be both unary and binary.
+
+- We can add another function like `NewUnaryFun(fun) fun` to the interface.
+  But it looks like we'll need many types,
+  so adding another function to each of them sounds cumbersome.
+
+- We can **reuse `NewFun` for unary operators** but ignore one of the arguments.
+  This sounds simplest, so let's do this.
+
+## stage 6: basic op types
+
+Right.  Let's see what we can do with it.
+
+It looks like we will need many kinds of operators with different behaviour.
+But all of them will have to do error checking,
+so let's define unary and binary operator types as generically as possible:
+as functions that receive and return `number`.
+
+Let's also define the corresponding functions for ints and floats.
+
+.code ../stage6/main.go /unOp.*func/-3/^type/,/^\)$/
+
+We'll deal with comparisons later.
+
+## stage 6: unary ops
+
+Let's start with the simple case: unary operators.
+`NewFun()` ignores the `right` operand,
+but otherwise there's nothing new here.
+
+.code ../stage6/main.go /func.*unOp.*NewFun/,/^}$/
+
+With this we can already define an op that prints:
+
+.code ../stage6/main.go /printOp.*=/
+
+Wait, did we just define a method on a function type?
+Yes we did.  Thanks for the inspiration, `http.HandlerFunc`.
+
+## stage 6: unary ops
+
+Add conversions from `bool` to `number`:
+`false` → `int(0)`, `true` → `int(1)`;  
+and from `number` to `bool`:
+`int(0)`, `float64(0.0)` → `false`, non-zero → `true`.
+
+.code ../stage6/main.go /^func boolToNumber/,/func.*number.*Bool//^}$/
+
+\...and we can define `'!'`:
+
+.code ../stage6/main.go /notOp.*=/
+
+## stage 6: unary ops
+
+Now we just need to create an `unOp` from two functions,
+
+.code ../stage6/main.go /func newUnOp/,/^}$/
+
+and then we can define an unary minus:
+
+.code ../stage6/main.go /subOp =//newUnOp/,/\),$/
+
+## stage 6: unary ops
+
+With a little helper function and a constructor
+we can create integer-only unary ops.
+
+.code ../stage6/main.go /func.*number.*Int/,/^}$/
+.code ../stage6/main.go /func newUnIntOp/,/^}$/
+
+Like `'^'`.
+(That's bitwise "not", BTW.
+If unary minus is "*`all-zeros`*` minus n`",
+unary `'^'` can well be "*`all-ones`*` xor n`".)
+
+.code ../stage6/main.go /xorOp.*=//newUnIntOp/
+
+## stage 6: binary ops
+
+Now let's do binary operators.
+`binOp.NewFun` and `newBinIntOp`
+are like their unary counterparts but with two arguments.
+We can use them to implement bitwise operators.
+
+.code ../stage6/main.go /lShiftOp *=/,/\borOp *=/
+
+Onto `newBinOp`.
+
+## stage 6: binary ops
+
+Casting operands to the same type can be useful for many kinds of operators,
+so let's move it to its own function.
+
+This function takes a `binOp` and wraps in a type casting.
+If the types of the operands don't match, one gets converted to `float64`.
+
+.code ../stage6/main.go /func castToSame/,/^}$/
+
+## stage 6: binary ops
+
+Then we can build our `binOp`.
+
+.code ../stage6/main.go /func newBinOp/,/^}$/
+
+.code ../stage6/main.go /addOp =/,/\)$/
+
+## stage 6: division
+
+The functions types we use,
+such as `binIntFun` (or `func(int, int) int`), don't return errors,
+so we can't implement
+`'/'` and `'%'` the same way we did before.
+
+We could write a different `NewFun`, of course.
+Or we could wrap the denominator `fun` in a `fun`
+that will return `ErrZeroDivision` if the result is zero.
+Like this:
+
+.code ../stage6/main.go /func.*fun.*Denominator/,/^}$/
+
+## stage 6: division
+
+Other than that, a division op is the same as `binOp`
+and is constructed the same way.
+
+.code ../stage6/main.go /type divModOp/,/func newDivModOp//^}$/
+
+Its `NewFun` just calls `binOp.NewFun`
+after wrapping the `right` `fun` in `Denominator`.
+
+.code ../stage6/main.go /func.*divModOp.*NewFun/,/^}$/
+
+Now we can define division and modulo operators.
+
+.code ../stage6/main.go /modOp =/,/\)$/
+
+## stage 6: wait, how does it work, again?
+
+Ok, so that was too much.
+Let's see how a `divModOp` is constructed and run in detail.
+
+So we call `newDivModOp` with two functions as arguments.
+These functions are anonymous,
+but for clarity let's pretend they and the generated closures have names.
+
+.code modclos.go /func intMod/,/func floatMod//^}$/
+
+## stage 6: constructing an op
+
+`newDivModOp` calls `newBinOp`,
+which first wraps the two functions in a closure
+calling one according to the type of the argument.
+
+.code modclos.go /func chooseMod/,/^}$/
+
+## stage 6: constructing an op
+
+It then calls `castToSame` to wrap it in type casting,
+and returns the result.
+
+.code modclos.go /func castMod/,/^}$/
+
+`newDivModOp` returns it as type `divModOp`.
+
+.code modclos.go /return divModOp/
+
+## stage 6: instantiating a fun
+
+When `NewFun` is called for the modulo operator,
+it first calls `fun.Denominator` to wrap `right` in a closure.
+
+.code modclos.go /func denominatorRight/,/^}$/
+
+## stage 6: instantiating a fun
+
+It then calls `binOp.NewFun` to construct the closure that will actually run.
+
+.code modclos.go /func runMod/,/^}$/
+
+## stage 6: running a fun
+
+At runtime: 
+- `runMod` calls `left`.
+- `runMod` calls `denominatorRight`.
+  - `denominatorRight` calls `right`.
+- `runMod` calls `castMod`.
+  - `castMod` calls `chooseMod`.
+    - `chooseMod` calls `intMod` or `floatMod`.
+
+Quite a lot of code for computing a modulo.
+
+If we ran the code repeatedly,
+it would make sense to track the types of numbers that the `fun`s return
+and only convert them as necessary, avoiding `castMod` and `chooseMod`.
+But for a calculator the compile time – run time distinction doesn't matter.
+
+## stage 6: unary and binary
+
+Let's continue.
+
+Some operators like `'-'` can be both unary and binary,
+and at the lexing stage we don't know which it will be.
+It's basically two `op`s wrapped in one.
+
+.code ../stage6/main.go /type multiOp/,/^}$/
+
+Thus, `NewFun` is where we'll have to decide which `fun` to retun.
+`NewFun` is called with `right` equal to `nil` for unary operators,
+so we'll check that.
+
+.code ../stage6/main.go /func.*multiOp.*NewFun/,/^}$/
+
+## stage 6: unary and binary
+
+Now we can define `'-'` and `'^'`.
+
+.code ../stage6/main.go /subOp =/,/}$/
+.code ../stage6/main.go /xorOp.*=/,/}$/
+
+## stage 6: opMap
+
+Now that we have a bunch of `op`s, let's lex them.
+
+We're going to have operators longer than one character (`<=`, `&&`),
+so let's change `opMap` accordingly
+and define some operators.
+
+.code ../stage6/main.go /type opMap/,/}$/
+
+.code ../stage6/main.go /var ops =/,/"\|"/
+
+## stage 6: opMap
+
+Then we can write a function to find the longest operator
+and call it from `yyLex.nextToken`.
+If none is found, it will return a single-character tokens
+with `op` set to `nil`,
+so that we don't have to add tokens like `'('`, `')'` and `';'` to the map.
+
+.code ../stage6/main.go /func.*opMap.*find/,/^}$/
+.code ../stage6/main.go /^func.*nextToken//case strings.Index/,/find/
+
+## stage 6: assignments
+
+To implement assignment,
+first we should have a function to assign the return value of a `fun`
+to a variable.
+
+.code ../stage6/main.go /func.*varMap.*NewSet/,/^}$/
+
+We shoud distinguish between three kinds of assignments:
+
+- simple assignment (`'='`)
+
+- fancy assignment (`+=`, `-=`, etc.)
+
+- post-increment and post-decrement (`++`, `--`)
+
+## stage 6: assignments
+
+To implement fancy operators like `+=`,
+we should get the current value of the variable,
+run the `+` operator and assign the result to the variable.
+We can reuse the code for `+`.
+
+`++` adds 1 to the variable's value,
+so we'll make it an unary operator.
+
+For `=` we don't get the variable's value or run a function,
+so we'll leave `op` as `nil`.
+
+.code ../stage6/main.go /func NewAssign/,/^}$/
+
+## stage 6: assignments
+
+Add them to the `opMap`.
+We don't have to add `'='`, as its `op` is `nil`.
+
+.code ../stage6/main.go /var ops =//ADDEQ/,/DEC/,/\)}/
+
+## stage 6: assignments
+
+Then we call `NewAssign` from the parser.
+
+.code ../stage6/parse.y /^assign:$/,/^postop:/
+
+## stage 6: logic operators
+
+How far can we push this framework?
+
+Let's add short circuit logic.
+The way `&&` works is:
+- The left operand is run.
+- If its result is `false`, the overall result is `false`
+  and the right operand is skipped.
+- If it's `true`, the overall result is the result of the right operand.
+
+`||` is the same, except with `true` and `false` reversed.
+
+So a logic operator is essentially a boolean.
+
+.code ../stage6/main.go /^type logicOp/,/^\)$/
+
+## stage 6: logic operators
+
+It requires a custom `NewFun`.
+
+.code ../stage6/main.go /func.*logicOp.*NewFun/,/^}$/
+
+## stage 6: comparison operators
+
+Let's write comparison functions for `==` and `'<'`.
+`'>'` is the same as `'<'` but with operands reversed.
+We can't use `newBinOp` here because they return `int` for any operands,
+but the operands still have to be cast to the same type.
+
+.code ../stage6/main.go /equalOp =/-3/^var/,/^\)$/
+
+## stage 6: comparison operators
+
+We define a comparison operator as a bitfield.
+
+.code ../stage6/main.go /^type compareOp/,/^\)$/
+
+Thus `"<="` is `Less|Equal`, `"!="` is `Less|Greater`, etc.
+
+## stage 6: comparison operators
+
+Let's turn it into `binOp`.
+
+`"!="` is the opposite of `"=="`, `"<="` of `'>'`, etc.
+So for a `compareOp` that has more than one bit set,
+we can run the opposite operator and negate the result.
+
+.code ../stage6/main.go /^func.*compareOp.*BinOp/,/switch/-2
+
+To tell if a number has only one bit set,
+we clear the lowest set bit and compare the result to zero.
+Here is how it works:
+
+      Equal = 1<<0 = binary 001        Greater = binary 100 = 4        Less | Greater = binary 110 = 6
+       Less = 1<<1 = binary 010        4-1 = 3 = binary 011                   6-1 = 5 = binary 101
+    Greater = 1<<2 = binary 100          4 & 3 = binary 000 = 0                 6 & 5 = binary 100 ≠ 0
+
+## stage 6: comparison operators
+
+We then choose the appropriate function and negate it if needed.
+
+.code ../stage6/main.go /^func.*compareOp.*BinOp//switch/,/^}$/
+
+## stage 6: comparison operators
+
+To instantiate it, we run `NewFun` on the resulting `binOp`.
+
+.code ../stage6/main.go /^func.*compareOp.*NewFun/,/^}$/
+
+Now we can add them to the `opMap`.
+
+.code ../stage6/main.go /var ops =//"<"/,/"!="/
+
+We run `compareOp.BinOp` every time `NewFun` is called, instead of once.
+It's not the most efficient way to do it,
+and I could build the `op`s with `(Less | Equal).BinOp()`,
+but that doesn't look as pretty
+and I think I've earned some fun.
+
+## stage 6: for loop
+
+Is a `for` loop an `op`?  Of course it is!
+
+.code ../stage6/main.go /type forLoop/,/func.*forLoop.*NewFun//^}$/
+
+## stage 6: for loop
+
+We just need to tokenize it as one.
+
+.code ../stage6/main.go /^func.*nextToken//case.*'a'//switch/,/\t}$/
+
+Define `list.NewFun` and we're ready to go.
+
+.code ../stage6/main.go /func.*list.*NewFun/,/^}$/
+.code ../stage6/parse.y /FOR expr/,/^$/
+
+## stage 6: for loop
+
+This is only the short kind of `for` loop.
+How does the other work?
+
+.code ../stage6/parse.y /FOR stmt2/
+
+- After running the `block`, we run the second `stmt2`.
+  `append` can take care of that.
+
+.code longfor.y /{/,/block :=/
+
+- With this, we can create the loop `fun`.
+
+.code longfor.y /loop :=/
+
+- Before the loop we run the first `stmt2`.
+  This is just a list.
+
+.code longfor.y /list/,
+
+## stage 6: for loop
+
+We can keep the result as a `list`.
+
+A `block` is a `list` and can appear in the same place as a `for` loop,
+so we change the name in the `stmts` rule from `block` to `list`,
+and define the `list` rule.
+
+//.code ../stage6/parse.y /^stmts:$//stmts list/,/}$/
+.code ../stage6/parse.y /^stmts:$/,/^list:$//.//^$/
+
+The short `for` loop will stay under `stmt`.
+
+// ## stage 6: parse.y
+// 
+// Here's the whole parser file at the moment.
+// 
+// .code ../stage6/parse.y ,/^%token/-1
+// 
+// ## stage 6: parse.y
+// 
+// .code ../stage6/parse.y /^%token/,/^%%$/
+// 
+// ## stage 6: parse.y
+// 
+// .code ../stage6/parse.y /^top:$/,/^stmt2:$/-1
+// 
+// ## stage 6: parse.y
+// 
+// .code ../stage6/parse.y /^stmt2:$/,/^expr3:$/-1
+// 
+// ## stage 6: parse.y
+// 
+// .code ../stage6/parse.y /^expr3:$/,/^expr6:$/-1
+// 
+// ## stage 6: parse.y
+// 
+// .code ../stage6/parse.y /^expr6:$/,/^expr7:$/-1
+// 
+// ## stage 6: parse.y
+// 
+// .code ../stage6/parse.y /^expr7:$/,
+// 
+// ## stage 6: parse.y: head
+// 
+// .code ../stage6/parse.y /^%union/,/^%%$/
+// 
+// ## stage 6: parse.y: operators
+// 
+// .code ../stage6/parse.y /^expr:$/,/^expr4:$/-1
+// .code ../stage6/parse.y /^op4:/
+// .code ../stage6/parse.y /^op5:/
+// .code ../stage6/parse.y /\| *unop expr7/
+// .code ../stage6/parse.y /^unop:/
+
+## stage 6: demo...
+
+.play -edit ../go/stage6.go /^func main/,/^}/

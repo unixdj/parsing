@@ -1,0 +1,39 @@
+digraph re {
+
+        node [shape=box];
+
+        o1 [label="<expr1>" fontcolor="blue"]
+
+        p1 [label="<expr1>"]
+        p4 [label="<op1>"]
+        p5 [label="<expr2>"]
+
+        r1 [label="<expr1>"]
+        r2 [label="<op1>"]
+        r3 [label="<expr2>"]
+
+        e1 [label="<expr2>"]
+
+        t1 [label="<NUMBER>"]
+        t3 [label="<NUMBER>"]
+        t5 [label="<NUMBER>"]
+
+        s1 [label="1"]
+        s2 [label="/"]
+        s3 [label="2"]
+        s4 [label="*"]
+        s5 [label="3"]
+
+        o1 -> { p1 p4 p5 } [color="blue"]
+        p1 -> { r1 r2 r3 }
+        r1 -> e1 -> t1 -> s1
+        r2 -> s2
+        r3 -> t3 -> s3
+        p4 -> s4
+        p5 -> t5 -> s5
+
+        { rank=same; p1 p4 p5 }
+        { rank=same; r1 r2 r3 }
+        { rank=same; t1 t3 t5 }
+        { rank=same; s1 s2 s3 s4 s5 }
+}

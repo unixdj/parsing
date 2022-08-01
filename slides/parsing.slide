@@ -1,0 +1,977 @@
+# Parsing and interpretation with goyacc and closures
+
+Vadim Vygonets
+August 2022
+
+## First of all,
+
+I don't know how to write slides (proof below).
+I only know how to write text.
+
+Don't read this drivel.  Just look at the code.
+
+Unless you're not attending the lecture but only have the slides,
+in which case my incompetence is helpful, I guess.
+
+### hello there
+
+## What's up?
+
+This is based on a parser/interpreter I once wrote for a s00per s1kr1t project,
+that had a simple grammar with nested parentheses.
+My goals with this presentation are:
+
+- To introduce this nice trick for writing interpreters.
+- To introduce you to parsing in general,
+  and give you the names of some concepts and tools
+  in case you choose to research this further.
+- To make you consider the techniques of processing input more carefully.
+- To make you fall in love with formal grammars.
+- To show off.
+
+If you'll leave this talk understanding grammars better
+and hating Noam Chomsky, I'll consider it a success.
+
+## What does the title mean?
+
+## What is parsing?
+
+Parsing, or lexical analysis, is:
+
+- receiving an input
+- understanding what's up with it
+  - presumably to do something useful with it later
+
+If you've dealt with input, _any_ input, you've done parsing.
+
+## And we should be careful doing that, you say?
+
+Yes.  Very.
+
+Not processing input correctly is where many security issues come from.
+
+> _A very large class of attacks against systems are really
+> input validation attacks._
+
+> > > — Robert J. Hansen, Meredith L. Patterson  
+> > > _Guns and Butter: Towards Formal Axioms of Input Validation_  
+> > > Presented at the Black Hat conference USA, 2005
+
+Patterson knows what she's talking about.
+She wrote an SQL firewall.
+
+An ***SQL firewall***.
+
+## What is interpretation?
+
+Running code without compiling it.  What a shell does.
+
+## What are closures?
+
+A closure is a function that captures variables from its environment.
+
+Example: the second argument of `sort.Search` from the Go standard library
+is a callback function.
+
+.code search.go /^func Search/
+
+The variables `a` and `k` are present in the "environment"
+inside `findMeAnInt`.
+
+.code search.go /^\//,/^func findMeAnInt/
+
+It calls `sort.Search` with a closure that captures `a` and `k`.
+
+.code search.go /^func findMeAnInt//return/,
+
+## Closures capture variables, not values
+
+.play -edit clos1.go /clos/,
+
+## What is goyacc?
+
+It's a `yacc`.
+
+For Go.
+
+## What is Go?
+
+You've got to be kidding me.
+
+## What is yacc?
+
+`yacc` is a parser generator for Unix written in early 1970s
+by Stephen C. Johnson.
+It takes a description of a grammar and writes C code of a parser.
+
+That is, it compiles grammar descriptions to C.
+
+The parsers it generates are LALR (more on this later),
+which is the sort of parsers that are often used for parsing
+context-free grammars such as most sane programming languages
+(i.e., not C++).  So they're used in compilers.
+
+So one might say that `yacc` compiles compilers.
+
+It's yet another one of the programs that do it.
+
+Thus the name: Yet Another Compiler Compiler.
+
+## Як як?
+
+Як як як.
+
+## Chomsky hierarchy of grammars
+
+## Chomsky hierarchy of grammars
+
+Any piece of data has a grammar, and it better be formal.
+The hierarchy of grammars categorises them into 4 groups.
+
+//.image 640px-Chomsky-hierarchy.svg.png 250 _
+.image 320px-Chomsky-hierarchy.svg.png
+
+>     Chomsky-hierarchy.svg    Copyright © 2010, J. Finkelstein, CC BY-SA 3.0
+
+It's useful to view the simpler categories
+as subsets of the more complex ones,
+but I will present them from the simplest (regular)
+to the most complex (recursively enumerable).
+
+But first, state machines!
+
+## State machine example: heatshrink encoder (Scott Vokes, 2013–2015)
+
+.image obj/enc_sm.png
+
+>     heatshrink embedded data compression library
+>     Copyright © 2013-2021, Scott Vokes <vokes.s@gmail.com>
+
+## Regular languages
+
+- A **Regular** grammar can be parsed by a finite state machine.
+  Regular expression engines generate those.
+
+Example: 
+a C identifier that starts with an ASCII letter or an underscore,
+followed by zero or more ASCII letters, underscores or digits.
+
+State machine (a double circle represents a terminal state):
+
+.image obj/re.png
+
+Regexp: `[A-Za-z_][A-Za-z_0-9]*`
+
+## Context-free languages
+
+- A **Context-free** grammar can be parsed by a finite state machine
+  with a stack.
+  Technically, a "non-deterministic pushdown automation".
+
+Example: Arithmetic expressions with parentheses.
+
+Context-free grammars are often specified using BNF (Backus–Naur form),
+so that's what we'll use to describe this one.
+
+      <expression> ::= <expr1> | <expression> <op0> <expr1>
+             <op0> ::= "+" | "-"
+           <expr1> ::= <expr2> | <expr1> <op1> <expr2>
+             <op1> ::= "*" | "/"
+           <expr2> ::= <NUMBER> | "(" <expression> ")"
+//         <expr2> ::= <opt-sign> <expr3>
+//      <opt-sign> ::= "" | "-"
+//         <expr3> ::= <NUMBER> | "(" <expression> ")"
+//        <number> ::= <digits> <opt-fraction>
+//  <opt-fraction> ::= "" | "." <digits>
+//        <number> ::= <digits> | <opt-fraction>
+//        <digits> ::= <digit> | <digits> <digit> 
+//         <digit> ::= "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
+
+// In practice, `<NUMBER>` is usually parsed by a tokeniser (lexer),
+// possibly using regular expressions,
+// and the parser receives a stream of tokens.
+
+Let's look at this example in detail using the expression `1 / 2 * 3`.
+
+.image obj/123-num.png
+
+## Context-free languages: example
+
+An `<op1>` is either `"*"` or `"/"`.
+
+A level 2 expression `<expr2>`
+is either a `<NUMBER>` or a top level expression in parentheses.
+The latter variant makes the whole grammar recursive.
+
+             <op1> ::= "*" | "/"
+           <expr2> ::= <NUMBER> | "(" <expression> ")"
+
+.image obj/123-token.png
+
+
+## Context-free languages: example
+
+An `<expr1>` is either an `<expr2>`,
+or an `<expr1>`, then an `<op1>`, then an `<expr2>`.
+
+           <expr1> ::= <expr2> | <expr1> <op1> <expr2>
+
+Let's start real parsing by applying the first variant to the first token
+and painting it blue.
+
+.image obj/123-p1.png
+
+Looks like we can apply the second variant to the red boxes.
+
+## Context-free languages: example
+
+.image obj/123-p2.png
+
+And again.
+
+## Context-free languages: example
+
+.image obj/123-p3.png 550 _
+
+## Context-free languages: example
+
+It's not an `<expression>` yet.
+So we have to apply this rule, and then we're really done.
+
+      <expression> ::= <expr1> | <expression> <op0> <expr1>
+
+.image obj/123-p4.png
+
+## Context-free languages: where's the state machine?  and the stack?
+
+`yacc` compiles grammar descriptions into those.
+
+## Context-sensitive languages
+
+- A **Context-sensitive** grammar can be parsed by all of the above,
+  plus some context, e.g., a dictionary.
+
+Example: The ANSI C programming language, because of `typedef`.
+Before ANSI, a type declaration always started with a known keyword,
+like `int` or `unsigned` or `struct`.
+Now it can be anything, so a dictionary is needed.
+
+Another example: IP packets, because they include a length field.
+_(Which is also an example of a formall grammar that is not text.)_
+
+## example: IPv4 packet- I mean, INTERNET DATAGRAM
+
+         0                   1                   2                   3
+         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |Ver= 4 |IHL= 5 |Type of Service|       Total Length = 472      |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |     Identification = 111      |Flg=0|     Fragment Offset = 0 |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |   Time = 123  | Protocol = 6  |        header checksum        |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |                         source address                        |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |                      destination address                      |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |                             data                              |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |                             data                              |
+        \                                                               \
+        \                                                               \
+        |                             data                              |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |             data              |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+    Figure 6: Example Internet Datagram.  RFC 791: Internet Protocol, Jon Postel (Editor), 1981.
+
+## length field: context-sensitive?
+
+Although, I guess, it could be made context-free
+by exploding the number of states,
+but this would be ridiculous.
+
+.image obj/packet-len.png
+
+## Recursively enumerable languages
+
+- A **Recursively enumerable** grammar can be parsed by a computer.
+
+Example: C++ _[citation needed]_.
+
+> _Outstandingly complicated grammar_
+>
+> "Outstandingly" should be interpreted literally,
+> because _all popular languages_ have context-free
+> (or "nearly" context-free) grammars,
+> while C++ has undecidable grammar.
+
+> > > — Yossi Kreinin, _Defective C++_
+
+## So who's this Chomsky guy?  He sounds quite smart.  I don't know why you want us to hate him.
+
+To be honest, I don't know myself.
+
+Prof. Noam Chomsky, born in 1928, is at MIT since 1955.
+His various achievements include pioneering the theories of
+Universal Grammar and Generative Linguistics.
+He is known as:
+
+- The father of modern linguistics
+- The Foremost Intellectual Of Our Time™
+- The Consciousness of the Western Left
+- Genocide denier
+
+## Noam Chomsky
+
+.image cho.jpeg _ 470
+
+> _Chomsky, who always emphasizes how one has to be empirical, accurate [...]
+> I don’t think I know a guy who was so often
+> empirically wrong in his descriptions!_
+
+> > > — Slavoj Žižek
+
+## Noam Chomsky
+
+Turns out I'm a vindictive bastard with an axe to grind.
+Source: personal conversation with
+Professor _"Tempest"_ (name changed) of psycholinguistics, 4 July 2022.
+
+> Prof.: _I do believe one should separate his linguistic beliefs from his political ones._
+
+> Me: _well, yes_
+
+> Prof.: _So perhaps making people in a grammar-related presentation dislike Chomsky for his political beliefs is not entirely fair?_
+
+> Me: _perhaps even not at all fair_
+
+As a reward for your suffering, here's a state machine that consumes bananas.
+
+.image obj/banana.png
+
+## Shall we write a parser then?
+
+Let's write a parser for arithmetic expressions with `+`, `-`, `*`, `/`, `%`
+(a context-free grammar) and parentheses (making it recursive).
+It'll have variables.
+
+
+Parsing context-free grammars is typically done in two stages.
+
+.image obj/lex-parse.png
+
+The first stage, called a "lexer" or a "tokeniser",
+breaks a stream of characters into tokens.
+In a programming language these are symbols like `printf`,
+keywords like `if`,
+literals like `42` and `"hello, world\n"`,
+operators like `&&` and `+`, brackets, commas, etc.
+
+The second stage is a LALR parser that takes a stream of tokens,
+figures out its structure and delivers the data to the rest of the program
+for further processing.
+
+- About that LALR thing...
+
+## I got 99 problems, but my parser's LALR(1)
+
+Above I was like "let's apply this rule to these tokens, because I said so".
+But we could try something else and reach a dead end.
+That's non-deterministic pushdown automation for you, I guess.
+This is stupid, so it's not how real parsers work.
+
+A parser generator generates a deterministic state machine
+that builds the tree as it consumes tokens.
+The kind of parser `yacc` generates is called LALR(1).
+
+A LALR(1) parser is:
+
+- ***L***ook-***A***head:
+  consumes further tokens to resolve ambiguities in text already parsed.
+- ***L***eft-to-Right:
+  consumes input linearly with no backtracking.
+- ***R***ightmost Derivation
+  (left associativity):
+  `a-b-c` means `(a-b)-c`, not `a-(b-c)`.
+- ***1*** token of look-ahead.
+
+Don't ask me about look-ahead, I don't understand it either.
+There's something called LR(1) which also does it,
+but allegedly the "LA" is not meaningless.
+
+## Stage 0: Parsing
+
+## stage 0: grammar
+
+At stage 0 we will write a parser that consumes the text and does nothing.
+
+Let's put our grammar definition in a `yacc` file `parse.y`,
+starting with some boilerplate.
+
+`goyacc` generates a Go file.  We put the prologue at the top,
+followed by the definition of the data structure holding the tokens (empty)
+and the types of tokens we have (numbers and identifiers),
+and mark the end of the section with `%%`.
+
+.code ../stage0/parse.y ,/^%%/
+
+## stage 0: grammar
+
+The top level is `stmts` (a list of statements).
+
+`stmts` is one of:
+- nothing
+- `stmts` followed by a semicolon, allowing for empty statements
+- `stmts` followed by a statement and a semicolon
+
+.code ../stage0/parse.y /^top:/,/^stmts:/
+
+Statements end with semicolons.
+The lexer will inject fake semicolons at the end of each line.
+
+This is the trick used in the Go lexer,
+which is why you don't end lines with semicolons in Go code.
+Except that our lexer will not be as nuanced and will always inject semicolons.
+
+## stage 0: grammar
+
+A statement is an assignment or an expression.
+
+.code ../stage0/parse.y /^stmt:/
+
+An assignment is a variable name, an `'='` and an expression.
+
+.code ../stage0/parse.y /^assign:/
+
+An `expr` is either a `expr2` or an addition or subtraction with `expr` on the left and `expr2` on the right.  This makes rightmost derivation work.
+
+`expr2` is similar, but is separate to give multiplication operators
+higher precedence.
+
+.code ../stage0/parse.y /^expr:/,/^expr2:/
+
+## stage 0: grammar
+
+`expr3` can be:
+
+- a number,
+- a variable name,
+- a negation of `expr3`,
+- a top level expression in parentheses.
+
+.code ../stage0/parse.y /^expr3:/
+
+We end this section with `%%`.  Could put some Go code below, but we won't.
+
+.code ../stage0/parse.y /^expr3://%%/,
+
+Done.
+
+## stage 0: grammar
+
+We saw some single character tokens that weren't explicitly defined,
+like `'+'` and `';'`.
+
+It's fine.
+
+Now let's see the code.
+
+## stage 0: code - token
+
+This magic comment tells `go generate` to run `goyacc`.
+
+.code ../stage0/main.go /go:generate/
+
+I'm lazy so I wrote a `Makefile`.
+
+.code ../stage0/Makefile ,/^$/
+
+`package main`, blah blah.  Here's a token.  It has a type and a string.
+
+.code ../stage0/main.go /^type token/,/^}/
+
+## stage 0: code - token
+
+We can print it to see what the lexer does.
+
+.code ../stage0/main.go /^func.*token.*String/,/^}/
+
+## stage 0: code - lexer: concurrency
+
+Here's the lexer type, name courtesy of `goyacc`.
+The `Lex` function is called by the parser,
+This API interrupts our flow, so we send the tokens on the channel
+whenever we feel like it.
+We also print the tokens as we pass them to the parser.
+
+.code ../stage0/main.go /^type yyLex/,/^}/
+.code ../stage0/main.go /^func.*yyLex.*Lex/,/^func.*sendToken//^}/
+
+## stage 0: code - lexer: single character tokens
+
+Next we need the tokeniser itself.
+`nextToken` will cut a token out of a string,
+and return the token and the rest of the string.
+
+`yacc` has two predefined token types: 0 or `$end` for end of file,
+and `1` or `$unk` for unknown.  Make the default an `$unk` token of length 1.
+
+.code ../stage0/main.go /^func.*nextToken/,/const bareTokens/-1
+
+The type of a single character token is the character itself.
+
+.code ../stage0/main.go /^func.*nextToken//const bareTokens/,/case.*bareTokens//case/-1
+
+## stage 0: code - lexer: numbers and identifiers
+
+If the first character is a digit, scan the string until we run
+out of digits and declare it a number.
+Same with lowercase letters and identifiers.
+
+.code ../stage0/main.go /^func.*nextToken//case.*9':/,/tok\.s/-1
+
+No `default` in this `switch`,
+we're already set up for an unknown token of length 1.
+Now let's cut the token from the string up to `tlen`,
+trim space from the rest and return both.
+
+.code ../stage0/main.go /^func.*nextToken//case.*9'://tok\.s/,/^}/
+
+## stage 0: code - lexer: main loop
+
+Split input into lines.
+Trim space, then scan and send tokens until the line is empty.
+
+.code ../stage0/main.go /^func.*run/,/nextToken//}/
+
+Inject a fake semicolon at the end of each line, and `$end` at the end.
+
+.code ../stage0/main.go /^func.*run//nextToken//}/+1,/^}/
+
+## stage 0: code - putting it all together
+
+The parser needs the lexer to have an error handler.
+Let's do it real quick.
+
+.code ../stage0/main.go /^func.*yyLex.*Error/,/^}/
+
+`main`: run the lexer in a goroutine
+and call the parser `yacc` generated for us.
+
+.code ../stage0/main.go /^func main/,/if false/-1
+.code ../stage0/main.go /^func main//Stdin/,
+
+_...wait, what was that gap in the middle of `main`? —
+**NOTHING.  THERE IS NO GAP IN `main`.**_
+
+Anyway, shall we try it?
+
+## stage 0: demo time!
+
+.play -edit ../go/stage0.go /^func main/,/^}/
+
+## Stage 1: Printing the parse tree
+
+## stage 1: the parse tree
+
+This was the actual next thing I did after writing the parser.
+Here's what it does.
+
+.play -edit ../go/stage1.go /^func main/,/^}/
+
+## stage 1: data structures
+
+Let's define a data structure representing a node in a binary tree.
+A node can hold a number or a string, and have up to two children.
+We'll call the node `tree` due to our stupidity.
+
+.code ../stage1/main.go /^type tree/,/^}$/
+
+We'll also have an array of `tree`s (for `stmts`).
+
+.code ../stage1/main.go /^type list/
+
+And a variable holding the result.
+
+.code ../stage1/main.go /^var top/
+
+## stage 1: data types
+
+We shall define the data types.  `num` is for numbers,
+`word` is for identifiers, `tree` and `list` for the above.
+
+.code ../stage1/parse.y /^%union/,/}/
+
+Here are the types of results of parsing rules.
+
+.code ../stage1/parse.y /^%type/,/^$/
+
+## stage 1: trees
+
+Now let's build a tree node for `'+'`.
+
+.code ../stage1/parse.y /^expr:/,/^        }/
+
+This is the rule for `expr` that we saw in stage 0,
+but broken into lines and with a code block (the `{ ... }` thing) added.
+
+If you know Go, you'll recognise that this code returns a pointer to a `tree`
+structure with three members initialised.  But what's up with the dollars?
+And why no code block for the first alternative?
+
+## stage 1: $BIG$BUCKS$
+
+`$$` refers to the result, and numberbucks to successive parameters.
+These get substituted by `yacc` with references to its internal data.
+
+      +--------------------------------------- $$ (result)
+      |       +------------------------------- $1 (1st param)
+      |       |      +------------------------ $2 (2nd param)
+      |       |      |       +---------------- $3 (3rd param)
+      v       |      |       |       +-------- code block
+    expr:     v      |       |       |
+            expr2    v       v       |
+    |       expr    '+'    expr2     |
+            {                        v
+                    $$ = something($1, $3)
+            }
+
+If the code block is not present, the default action is:
+
+            {
+                    $$ = $1
+            }
+
+## stage 1: numbers
+
+Let's define a `num` type for numbers.
+
+.code ../stage1/parse.y /^%token.*num/
+
+We can optimise the negation by negating the number while parsing,
+for which we will need the `num` rule.
+
+.code ../stage1/parse.y /^%type.*num/
+.code ../stage1/parse.y /^num:/,/^        }/
+
+## stage 1: numbers
+
+Then we can put numbers (and variables) in the tree.
+
+.code ../stage1/parse.y /^expr3:/,/^\|/
+
+.code ../stage1/parse.y /^var:/,/.//^$/
+
+## stage 1: lists
+
+The rest of expression rules are the same, so let's deal with `stmts`.
+
+- An empty `stmts` list does nothing.  We don't initialise the slice,
+  because Go is magic and `append` works on uninitialised slices.
+  We do need an empty block, however, because there's no `$1`.
+- A rule adding an empty statement does nothing.
+- A rule adding an actual statement appends it to the list.
+
+.code ../stage1/parse.y /^stmts:/,/.//^$/
+
+## stage 1: lists
+
+The rule for `top` assigns the list to the global variable.
+
+.code ../stage1/parse.y /^top:/,/.//^$/
+
+So we're done with `yacc`, now we just need to change the lexer.
+
+## stage 1: lexer
+
+We need the `token` to hold a number, ...
+
+.code ../stage1/main.go /^type token/,/^}/
+
+\... so that we can pass it to the parser. (We'll pass variable names too.)
+
+.code ../stage1/main.go /^func.*yyLex.*Lex/,/^}/
+
+## stage 1: lexer
+
+We'll add the code for parsing numbers to `nextToken`.
+In case parsing of the number fails,
+we'll print an error and return 1 (`$unk`).
+
+.code ../stage1/main.go /^func.*nextToken//case.*9':/,/case/-1
+
+## stage 1: lexer
+
+There was this line in `Lex`:
+
+.code ../stage1/main.go /^func.*yyLex.*Lex//last/
+
+We're saving the last token passed to the parser, so that if parsing fails,
+we can print the offending token.
+
+.code ../stage1/main.go /^type yyLex/,/^}/
+.code ../stage1/main.go /^func.*yyLex.*Error/,/^}/
+
+Now we just need to add some boring code to print trees,
+which I won't show here.
+
+Let's run it.
+
+## stage 1: demo time!
+
+.play -edit ../go/stage1.go /^func main/,/^}/
+
+## Stage 2: Interpreter
+
+## stage 2: rationale
+
+My s00per s1kr1t project had variables and needed to run code.
+After I could print the parse tree,
+I thought about how to write the interpreter,
+and concluded that the simplest thing to do would to assemble one
+from closures at parse time.
+
+It will also be fast to run, as it's basically native compiled Go code.
+
+- We're writing a shitty calculator, so a bare expression
+(without variable assignment) will just print the result.
+
+- We will also not handle missing variables and division by zero gracefully
+  at this stage.
+
+
+> > (That project didn't have the zero division issue.
+> > It did handle missing variables, but I don't remember how.)
+
+Let's do it then.
+
+## stage 2: variables
+
+We will need variables, so we'll store them in a map from `string`
+(variable name) to `int` (value).
+We don't handle errors, so reading a missing variable will return 0.
+
+.code ../stage2/main.go /^type varMap/,/^func.*Get//^}/
+
+Our global state will have two things now.
+
+.code ../stage2/main.go /^var runtime/,/^}$/
+
+## stage 2: lists
+
+We don't have trees anymore.
+All we have is a list of functions returning `int`.
+
+.code ../stage2/main.go /^type list/,/^}$/
+
+The only added line of code I haven't shown is this one at the end of `main`:
+
+.code ../stage2/main.go $-5/Run/
+
+Now that this is done, let's see the parser.
+
+## stage 2: parser
+
+We'll need an `import` statement so that we can print
+division by zero errors.
+
+.code ../stage2/parse.y ,/^%}/
+
+We'll replace `tree` with a function returning int,
+which is `fun` (allegedly).
+
+.code ../stage2/parse.y /^%union/,/^}/
+.code ../stage2/parse.y /^%type.*fun/
+
+## stage 2: numbers
+
+Now onto the closures.  We'll start with numbers.
+The recipe for `num` is unchanged, but here's how we turn a `num` into a `fun`:
+
+.code ../stage2/parse.y /^expr3:/,/.//^$/
+
+Seems simple enough, right?
+We create an anonymous function that returns an `int`.
+But why not return just `$1` instead?
+
+## stage 2: numbers
+
+Here's the code `goyacc` generates for `return $1`:
+
+.code num-closure.go
+
+This closure captures `yyDollar`, a parser's internal variable.
+Our code creates a variable with the correct value that the closure captures:
+
+.code ../go/stage2.go /^func.*yyParserImpl.*Parse//return n/-8/case/,/case/-1
+
+## stage 2: variables
+
+Reading a variable is just a matter of calling `Get`,
+and writing is as simple.
+
+.code ../stage2/parse.y /^var:/,/.//^$/
+
+.code ../stage2/parse.y /^assign:/,/.//^$/
+
+## stage 2: arithmetics
+
+Let's see how we implement addition.
+
+.code ../stage2/parse.y /^expr://\+/,/^\|/-1
+
+Other operators are the same, except division that is more elaborate:
+
+.code ../stage2/parse.y /^expr2://'\/'//func/,/return x/+1
+
+Shitty error handling.
+
+## stage 2: bare expressions
+
+Now let's make bare expressions print their result.
+We'll put this code in `stmt: expr`.
+
+.code ../stage2/parse.y /^stmt:/,/.//^$/
+
+Change `top` to `runtime.top` and we're done.
+
+.code ../stage2/parse.y /^top:/,/.//^$/
+
+Let's run it.
+
+## stage 2: demo time!
+
+.play -edit ../go/stage2.go /^func main/,/^}/
+
+## Stage 3: Just for fun
+
+## stage 3: for loops
+
+IRL at this stage I was done.
+But I wanted to show you how easy it is to extend this, and I had an idea.
+
+`for` loops.
+
+Let's turn this shitty non-interactive calculator into a shitty
+programming language interpreter.
+
+## stage 3: token
+
+First, let's introduce another token.
+
+.code ../stage3/parse.y /^%token.*FOR/
+
+Now let's add braces to `bareTokens`
+and keyword detection to `nextToken`:
+
+.code ../stage3/main.go /const bareTokens/
+.code ../stage3/main.go /^func.*nextToken//case.*'a'/,/default://}/
+
+Now we're done with _that_ file.  Back to the parser.
+
+## stage 3: block
+
+We'll need blocks.
+A block is a list of statements surrounded by curly braces.
+
+.code ../stage3/parse.y /^block:/,+
+
+What it does is run the statements.  Hey, we already have a function for that.
+
+.code ../stage3/parse.y /^block:/+2,/^$/
+
+## stage 3: statements
+
+We want to have Go-like for loops, which come in three varieties:
+
+    for stmt; expr; stmt { code } // normal for loop
+    for expr { code }             // like while loop in C
+    for { code }                  // infinite loop
+
+We don't have `break`, `return` or `exit`,
+so we're only interested in the first two.
+
+Ok, so a block is a statement.
+But we don't want it to appear *anywhere* statements can go.
+In particular, the statements in that `for stmt; expr; stmt` thing
+should not be blocks (or `for` loops).
+
+So now we have a statement hierarchy.  Great.
+
+.code ../stage3/parse.y /^stmt:/,/^stmt2://^\|/
+
+## stage 3: loop
+
+We don't have booleans, so we'll do it the C way: zero is false, non-zero is true.
+
+.code ../stage3/parse.y /^forloop:/,/.//^$/
+
+## stage 3: parser
+
+Now we only need to add those rules to the `fun` type and we're done.
+
+.code ../stage3/parse.y /^%type.*fun/
+
+We don't have logical operators, we don't even have comparisons.
+We can still test it though.  Let's do it.
+
+## stage 3: demo time!
+
+.play -edit ../go/stage3.go /^func main/,/^}/
+
+## Things to come
+
+## stage 4: Error handling
+
+Error propagation: execution stops on errors.
+
+.code ../stage4/parse.y /^expr://\+/,/^\|/-1
+
+.play -edit ../go/stage4.go /^func main//if true/+1,/return/
+
+## stage 5: Interactive calculator
+
+.play -edit ../go/stage5.go /^func main//if true/+1,/return/
+
+## stage 5: Fernschreibmaschine mit Telefonanschluss???
+
+.image tty.jpeg _ 700
+
+>     Bundesarchiv Bild 183-2008-0516-500, Fernschreibmaschine mit Telefonanschluss
+
+## stage 6: Floats and more operators
+
+Floating point, automatic `int` ⇄ `float64` conversion
+
+.code ../stage6/main.go /type number /,/^}$/
+
+Shorter operator definitions, reused for assighments
+
+.code ../stage6/main.go /divOp =/,/\)$/
+.code ../stage6/main.go /var ops =//"\/"/
+.code ../stage6/main.go /var ops =//"\/="/
+
+## stage 6: Unary ops, integer-only ops, comparison ops, logic ops, etc.
+
+.code ../stage6/main.go /xorOp *=/,/}$/
+.code ../stage6/main.go /var ops =//"=="/,/"&&"/
+
+Easy to use!
+
+.code ../stage6/parse.y /^expr5:/,/^op5:/
+
+## stage 6: Fancy assignments
+
+.code ../stage6/parse.y /^assign:$/,/^postop:/
+.code ../stage6/main.go /var ops =//INC/,/\)},$/
+
+## stage 6: With the magic of interfaces, for loop is an operator
+
+.code ../stage6/main.go /type fun /
+.code ../stage6/main.go /type op /,/^}$/
+.code ../stage6/parse.y /FOR expr/,/^$/
+
+//.play -edit ../go/stage6.go /^func main//if true/+1,/\t`/
+.play -edit ../go/stage6.go /^func main//if true/+1,/return/
