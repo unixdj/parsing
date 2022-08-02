@@ -11,3 +11,58 @@ ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+Copyright (c) 2022, Vadim Vygonets
+Creative Commons Attribution-ShareAlike 3.0 Germany
+(CC BY-SA 3.0 DE)
+
+-----------------------------------------------------------------
+
+slides/enc_sm.dot
+heatshrink encoder state machine
+heatshrink embedded data compression library
+Scott Vokes, 2013, 2015
+modifications by Vadim Vygonets, 2015, 2022
+
+Copyright (c) 2013-2015, Scott Vokes <vokes.s@gmail.com>
+All rights reserved.
+ 
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+ 
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+-----------------------------------------------------------------
+
+slides/320px-Chomsky-hierarchy.svg.png
+
+Copyright (c) 2010, J. Finkelstein
+Creative Commons Attribution-ShareAlike 3.0 Unported
+(CC BY-SA 3.0)
+
+-----------------------------------------------------------------
+
+slides/tty.jpeg
+
+Bild 183-2008-0516-500
+Fernschreibmaschine mit Telefonanschluss
+
+Die neue Fernschreibmaschine, die Stenotypistin für grosse
+Entfernung, ist das Neueste der Bürotechnik.  Der Apparat ist an
+das Telephon angeschlossen.  Er heisst Teleprinter und kann
+Tausende von Apparaten gleichzeitig in Bewegung bringen.
+
+Photographer: Illger, Willi
+Date: 1930 ca.
+Source: Bundesarchiv (Federal Archives), Germany
+Stock: Bild 183 - Allgemeiner Deutscher Nachrichtendienst - Zentralbild
+
+Creative Commons Attribution-ShareAlike 3.0 Germany
+(CC BY-SA 3.0 DE)
