@@ -305,7 +305,7 @@ func (yy *yyLex) run() {
 	}
 	// EOF
 	// we could check yy.last here to avoid sending $end
-	// after $end or $unk, but this simpler is more robust.
+	// after $end or $unk, but this is simpler is more robust.
 	yy.sendEnd()                          // send $end
 	yy.send(token{typ: CMD, fun: cmdEOF}) // send EOF command
 	yy.sendEnd()                          // send $end
