@@ -171,5 +171,10 @@ _Alfred V. Aho, Monica S. Lam, Ravi Sethi, and Jeffrey D. Ullman_, 2006
 ISBN 0-321-48681-1  
 https://suif.stanford.edu/dragonbook/
 
+Reflections on Trusting Trust  
+_Ken Thompson_'s Turing Award lecture, 1984  
+Communications of the ACM, Volume 27, Number 8, pages 761-763  
+https://www.cs.cmu.edu/~rdriley/487/papers/Thompson_1984_ReflectionsonTrustingTrust.pdf
+
 LANGSEC: Language-theoretic Security  
 https://langsec.org/
