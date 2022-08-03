@@ -486,7 +486,7 @@ This magic comment tells `go generate` to run `goyacc`.
 
 I'm lazy so I wrote a `Makefile`.
 
-.code ../stage0/Makefile ,/^$/
+.code ../stage0/Makefile /^\$.TARGET/,/^$/
 
 `package main`, blah blah.  Here's a token.  It has a type and a string.
 
@@ -964,8 +964,8 @@ Easy to use!
 
 ## stage 6: Fancy assignments
 
-.code ../stage6/parse.y /^assign:$/,/^postop:/
-.code ../stage6/main.go /var ops =//INC/,/\)},$/
+.code ../stage6/parse.y /^assign:$/,/^incdec:/
+.code ../stage6/main.go /decOp.*=/,/\)$/
 
 ## stage 6: With the magic of interfaces, for loop is an operator
 
