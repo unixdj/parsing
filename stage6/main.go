@@ -52,6 +52,19 @@ func (a number) String() string {
 	return strconv.FormatInt(int64(a.i), 10)
 }
 
+func (a number) NewFun() fun {
+	return func() (number, error) {
+		return a, nil
+	}
+}
+
+func (a number) RunUnary(f op) number {
+	if m, ok := f.(multiOp); ok {
+		f = m.un
+	}
+	return f.(unOp)(a)
+}
+
 type fun func() (number, error)
 
 func (f fun) Denominator() fun {

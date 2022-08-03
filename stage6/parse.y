@@ -19,8 +19,8 @@ package main
 %token <op> LSHIFTEQ RSHIFTEQ INC DEC FOR
 
 %type <num> num
-%type <op> op3 op4 op5 unop assop postop
-%type <fun> stmt stmt2 assign var
+%type <op> op3 op4 op5 unop assignop incdec
+%type <fun> stmt stmt2 assign
 %type <fun> expr expr2 expr3 expr4 expr5 expr6 expr7
 %type <list> stmts list block
 
@@ -54,14 +54,14 @@ stmt2:
 |       expr                    { $$ = printOp.NewFun($1, nil) }
 
 assign:
-        IDENT assop expr        { $$ = NewAssign($1, $2, $3) }
-|       IDENT postop            { $$ = NewAssign($1, $2, nil) }
+        IDENT assignop expr     { $$ = NewAssign($1, $2, $3) }
+|       IDENT incdec            { $$ = NewAssign($1, $2, nil) }
 
-assop:    
+assignop:
         '=' | ADDEQ | SUBEQ | MULEQ | DIVEQ | MODEQ
 |       ANDEQ | XOREQ | BICEQ | OREQ | LSHIFTEQ | RSHIFTEQ
 
-postop: INC | DEC
+incdec: INC | DEC
 
 expr:
         expr2
@@ -91,32 +91,17 @@ op5:    '*' | '/' | '%' | '&' | BIC | LSHIFT | RSHIFT
 
 expr6:
         expr7
-|       num
-        {
-                n := $1
-                $$ = func() (number, error) {
-                        return n, nil
-                }
-        }
+|       num                     { $$ = $1.NewFun() }
 
 num:
         NUM
-|       '-' NUM
-        {
-                $$ = number{
-                        i:       -$2.i,
-                        f:       -$2.f,
-                        isFloat: $2.isFloat,
-                }
-        }
+|       unop num                { $$ = $2.RunUnary($1) }
 
 expr7:
-        var
+        '(' expr ')'            { $$ = $2 }
+|       IDENT                   { $$ = runtime.vars.NewGet($1) }
 |       unop expr7              { $$ = $1.NewFun($2, nil) }
-|       '(' expr ')'            { $$ = $2 }
 
 unop:    '-' | '^' | '!'
-
-var:    IDENT                   { $$ = runtime.vars.NewGet($1) }
 
 %%
