@@ -57,7 +57,7 @@ type fun func() (number, error)
 func (f fun) Denominator() fun {
 	return func() (number, error) {
 		n, err := f()
-		if !n.Bool() && err == nil {
+		if err == nil && !n.Bool() {
 			err = ErrZeroDivision
 		}
 		return n, err
@@ -269,8 +269,8 @@ func (forLoop) NewFun(expr, block fun) fun {
 func NewAssign(lval string, op op, rval fun) fun {
 	/*
 	 * Possibilities:
-	 * op == nil:    '=' operator, rval is the value
-	 * rval == nil:  "++" or "--", unOp.NewFun() uses left as the value
+	 * op == nil:    '=' operator, rval returns the value
+	 * rval == nil:  "++" or "--", unOp.NewFun() ignores the right operand
 	 * both non-nil: operator like "+=", uses Get(lval) and rval
 	 */
 	if op != nil {
@@ -315,6 +315,14 @@ var (
 		newUnIntOp(func(a int) int { return ^a }),
 		newBinIntOp(func(a, b int) int { return a ^ b }),
 	}
+	incOp = newUnOp(
+		func(a int) int { return a + 1 },
+		func(a float64) float64 { return a + 1 },
+	)
+	decOp = newUnOp(
+		func(a int) int { return a - 1 },
+		func(a float64) float64 { return a - 1 },
+	)
 	notOp   unOp = func(a number) number { return boolToNumber(!a.Bool()) }
 	printOp unOp = func(a number) number { fmt.Println(a); return a }
 )
@@ -370,14 +378,8 @@ var ops = opMap{
 	"|=":  {OREQ, orOp},
 	"<<=": {LSHIFTEQ, lShiftOp},
 	">>=": {RSHIFTEQ, rShiftOp},
-	"++": {INC, newUnOp(
-		func(a int) int { return a + 1 },
-		func(a float64) float64 { return a + 1 },
-	)},
-	"--": {DEC, newUnOp(
-		func(a int) int { return a - 1 },
-		func(a float64) float64 { return a - 1 },
-	)},
+	"++":  {INC, incOp},
+	"--":  {DEC, decOp},
 }
 
 type list []fun
@@ -540,7 +542,7 @@ func (yy *yyLex) getLine() int {
 
 func (yy *yyLex) nextToken() bool {
 	s := strings.TrimSpace(yy.s)
-	if s == "" {
+	if s == "" || s[0] == '#' {
 		return false
 	}
 	var (
@@ -549,7 +551,7 @@ func (yy *yyLex) nextToken() bool {
 	)
 	const bareTokens = "!%&()*+-/;<=>^{|}"
 	switch {
-	case strings.Index(bareTokens, s[:1]) != -1:
+	case strings.IndexByte(bareTokens, s[0]) != -1:
 		tok, tlen = ops.find(s)
 	case s[0] >= '0' && s[0] <= '9':
 		for tlen < len(s) &&
@@ -640,9 +642,7 @@ func (yy *yyLex) run() {
 		if yy.tty && depth <= 0 {
 			// interactive and not within a block:
 			// send $end and reset depth
-			if yy.sendEnd() != lexParseSuccess {
-				goto reset
-			}
+			yy.sendEnd()
 			depth = 0
 		}
 		continue

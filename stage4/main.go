@@ -97,7 +97,7 @@ func (yy *yyLex) nextToken(s string) (token, string) {
 	)
 	const bareTokens = "=+-*/%(){};"
 	switch {
-	case strings.Index(bareTokens, s[:1]) != -1:
+	case strings.IndexByte(bareTokens, s[0]) != -1:
 		tok.typ = int(s[0])
 	case s[0] >= '0' && s[0] <= '9':
 		for tlen < len(s) && s[tlen] >= '0' && s[tlen] <= '9' {

@@ -104,7 +104,7 @@ The example code is broken into 7 stages of development.
 #### Development stage 6b
 
 - Floating point support for Stage 6a
-- Automatic conversion between integer and floating point numbers
+  - Automatic conversion between integer and floating point numbers
 
 
 #### Stage 6 final
@@ -113,7 +113,7 @@ The example code is broken into 7 stages of development.
 - Floating point support
 - More operators
   - Binary integer / floating point operators:
-    `+`, `-`, `*`, `/`, `%`,
+    `+`, `-`, `*`, `/`, `%`
   - Binary integer-only operators:
     `&`, `^`, `&^`, `|`, `<<`, `>>`
   - Unary operators:

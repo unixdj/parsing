@@ -2,13 +2,8 @@ package main
 
 import "math"
 
-func intMod(a, b int) int {
-	return a % b
-}
-
-func floatMod(a, b float64) float64 {
-	return math.Mod(a, b)
-}
+func intMod(a, b int) int           { return a % b }
+func floatMod(a, b float64) float64 { return math.Mod(a, b) }
 
 func runMod() (number, error) {
 	a, err := left()
@@ -24,7 +19,7 @@ func runMod() (number, error) {
 
 func denominatorRight() (number, error) {
 	n, err := right()
-	if !n.Bool() && err == nil {
+	if err == nil && !n.Bool() {
 		err = ErrZeroDivision
 	}
 	return n, err

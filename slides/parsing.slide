@@ -284,7 +284,7 @@ _(Which is also an example of a formall grammar that is not text.)_
         |             data              |
         +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
-    Figure 6: Example Internet Datagram.  RFC 791: Internet Protocol, Jon Postel (Editor), 1981.
+    Figure 6: Example Internet Datagram.  RFC 791 - Internet Protocol, Jon Postel (Editor), 1981.
 
 ## length field: context-sensitive?
 
@@ -914,7 +914,7 @@ Now we only need to add those rules to the `fun` type and we're done.
 
 .code ../stage3/parse.y /^%type.*fun/
 
-We don't have logical operators, we don't even have comparisons.
+We don't have logical operators, we don't even have comparison.
 We can still test it though.  Let's do it.
 
 ## stage 3: demo time!
@@ -939,7 +939,7 @@ Error propagation: execution stops on errors.
 
 .image tty.jpeg _ 700
 
->     Bundesarchiv Bild 183-2008-0516-500, Fernschreibmaschine mit Telefonanschluss
+>     Bundesarchiv Bild 183-2008-0516-500 / Illger, Willi, 1930 ca.  Fernschreibmaschine mit Telefonanschluss
 
 ## stage 6: Floats and more operators
 
@@ -947,7 +947,7 @@ Floating point, automatic `int` ⇄ `float64` conversion
 
 .code ../stage6/main.go /type number /,/^}$/
 
-Shorter operator definitions, reused for assighments
+Shorter operator definitions, reused for assignments
 
 .code ../stage6/main.go /divOp =/,/\)$/
 .code ../stage6/main.go /var ops =//"\/"/

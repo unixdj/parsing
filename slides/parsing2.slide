@@ -3,7 +3,7 @@
 Vadim Vygonets
 August 2022
 
-## stage 4: Error handling
+## Stage 4: Error handling
 
 ## stage 4: functions
 
@@ -15,10 +15,6 @@ And convert `varMap.Get()` and `list.Run()` to return errors:
 
 .code ../stage4/main.go /^func.*varMap.*Get/,/^}/
 .code ../stage4/main.go /^func.*list.*Run/,/^}/
-
-//We'll need one more error.
-
-//.code ../stage4/main.go /^var ErrZeroDivision/
 
 ## stage 4: functions
 
@@ -56,7 +52,7 @@ and moved it under `stmts`.
 
 .play -edit ../go/stage4.go /^func main//if true/+1,/return$/
 
-## stage 5: Interactive calculator
+## Stage 5: Interactive calculator
 
 ## stage 5: interactive calculator
 
@@ -149,6 +145,8 @@ to avoid passing it around.
 ## stage 5: nextToken()
 
 We'll change `nextToken()` to use the new `yyLex` members and return `bool`.
+We'll also introduce comments
+starting with `'#'` because why not.
 
 .code ../stage5/main.go /^func.*yyLex.*nextToken/,/return/+1
 
@@ -183,7 +181,7 @@ so that when parsing fails there aren't a bunch of tokens queued up.
 
 .image tty.jpeg _ 700
 
->     Bundesarchiv Bild 183-2008-0516-500, Fernschreibmaschine mit Telefonanschluss
+>     Bundesarchiv Bild 183-2008-0516-500 / Illger, Willi, 1930 ca.  Fernschreibmaschine mit Telefonanschluss
 
 ## stage 5: lexer
 
@@ -197,7 +195,7 @@ but serial code is easier to understand.
 Process lines in a loop.
 
 If a parse status is received while waiting for input, reset the lexer.
-We do it with a `goto`, because `goto` rules.
+We do it with a `goto`, because `goto` is awesome.
 
 On end of file we `break`.
 
@@ -241,8 +239,8 @@ In interactive sessions, send `$end` if the depth is zero.
 Negative depth should cause parse errors,
 but it's more robust to handle it here too.
 
-`sendEnd()` returns the parse status (it never returns `lexOK`).
-If parsing failed, reset.
+We don't care if parsing fails,
+we're resetting anyway.
 
 Then loop back to reading the next input line.
 
@@ -255,7 +253,7 @@ How do we `reset`?
 In non-interactive sessions we don't.  We just quit.
 It's a parse error in a file.
 
-In interactive session we reset the depth and keep going
+In interactive sessions we reset the depth and keep going
 (from the next line).
 
 .code ../stage5/main.go /^func.*yyLex.*run//reset:/,/depth//}$/
@@ -271,7 +269,7 @@ End the current parse session and send the `EOF` command in its own session.
 
 .play -edit ../go/stage5.go /^func main//if true/+1,/return$/
 
-## stage 6: Floats and more operators
+## Stage 6: Floats and more operators
 
 ## stage 6: floats
 
@@ -285,7 +283,7 @@ I can't imagine what it would be like to add floats to it.
 
 Let's backtrack a little and start with reducing boilerplate.
 
-## stage 6a: Binary integer operators
+## Stage 6a: Binary integer operators
 
 ## stage 6a: binary integer operators
 
@@ -335,7 +333,7 @@ Now we can add the `op` to the `token` structure and pass it to the parser.
 
 .code ../stage6a/main.go /^func.*nextToken//case strings.Index/,/}/
 
-## stage 6b: Floating point
+## Stage 6b: Floating point
 
 ## stage 6b: floating point
 
@@ -404,7 +402,7 @@ which now has entries like this:
 
 .play -edit ../go/stage6b.go /^func main/,/^}/
 
-## stage 6: Floats and ops
+## Stage 6: Floats and ops
 
 ## stage 6: floats and ops
 
@@ -480,7 +478,7 @@ Let's also define the corresponding functions for ints and floats.
 
 .code ../stage6/main.go /unOp.*func/-3/^type/,/^\)$/
 
-We'll deal with comparisons later.
+We'll deal with comparison later.
 
 ## stage 6: unary ops
 
@@ -529,7 +527,7 @@ we can create integer-only unary ops.
 .code ../stage6/main.go /func newUnIntOp/,/^}$/
 
 Like `'^'`.
-(That's bitwise "not", BTW.
+(That's how bitwise "not" is written in Go, BTW.
 If unary minus is "*`all-zeros`*` minus n`",
 unary `'^'` can well be "*`all-ones`*` xor n`".)
 
@@ -564,7 +562,7 @@ Then we can build our `binOp`.
 
 .code ../stage6/main.go /addOp =/,/\)$/
 
-## stage 6: division
+## stage 6: division and modulo
 
 The functions types we use,
 such as `binIntFun` (or `func(int, int) int`), don't return errors,
@@ -573,12 +571,13 @@ so we can't implement
 
 We could write a different `NewFun`, of course.
 Or we could wrap the denominator `fun` in a `fun`
-that will return `ErrZeroDivision` if the result is zero.
+that will return an error if the result is zero.
 Like this:
 
+.code ../stage6/main.go /^var ErrZeroDivision/
 .code ../stage6/main.go /func.*fun.*Denominator/,/^}$/
 
-## stage 6: division
+## stage 6: division and modulo
 
 Other than that, a division op is the same as `binOp`
 and is constructed the same way.
@@ -603,9 +602,7 @@ So we call `newDivModOp` with two functions as arguments.
 These functions are anonymous,
 but for clarity let's pretend they and the generated closures have names.
 
-.code modclos.go /func intMod/,/func floatMod//^}$/
-
-## stage 6: constructing an op
+.code modclos.go /^func intMod/,/^$/
 
 `newDivModOp` calls `newBinOp`,
 which first wraps the two functions in a closure
@@ -660,11 +657,11 @@ Let's continue.
 
 Some operators like `'-'` can be both unary and binary,
 and at the lexing stage we don't know which it will be.
-It's basically two `op`s wrapped in one.
+Therefore what we need is two `op`s wrapped in one.
 
 .code ../stage6/main.go /type multiOp/,/^}$/
 
-Thus, `NewFun` is where we'll have to decide which `fun` to retun.
+Thus, `NewFun` is where we'll have to decide which `fun` to return.
 `NewFun` is called with `right` equal to `nil` for unary operators,
 so we'll check that.
 
@@ -681,7 +678,7 @@ Now we can define `'-'` and `'^'`.
 
 Now that we have a bunch of `op`s, let's lex them.
 
-We're going to have operators longer than one character (`<=`, `&&`),
+We have operators longer than one character (`&^`, `<<`),
 so let's change `opMap` accordingly
 and define some operators.
 

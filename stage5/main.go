@@ -171,7 +171,7 @@ func (yy *yyLex) getLine() int {
 
 func (yy *yyLex) nextToken() bool {
 	s := strings.TrimSpace(yy.s)
-	if s == "" {
+	if s == "" || s[0] == '#' {
 		return false
 	}
 	var (
@@ -180,7 +180,7 @@ func (yy *yyLex) nextToken() bool {
 	)
 	const bareTokens = "!%&()*+-/;<=>^{|}"
 	switch {
-	case strings.Index(bareTokens, s[:1]) != -1:
+	case strings.IndexByte(bareTokens, s[0]) != -1:
 		tok.typ = int(s[0])
 	case s[0] >= '0' && s[0] <= '9':
 		for tlen < len(s) && s[tlen] >= '0' && s[tlen] <= '9' {
@@ -264,9 +264,7 @@ func (yy *yyLex) run() {
 		if yy.tty && depth <= 0 {
 			// interactive and not within a block:
 			// send $end and reset depth
-			if yy.sendEnd() != lexParseSuccess {
-				goto reset
-			}
+			yy.sendEnd()
 			depth = 0
 		}
 		continue
