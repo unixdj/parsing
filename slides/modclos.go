@@ -27,9 +27,9 @@ func denominatorRight() (number, error) {
 
 func chooseMod(a, b number) number {
 	if a.isFloat {
-		a.f = intMod(a.f, b.f)
+		a.f = floatMod(a.f, b.f)
 	} else {
-		a.i = floatMod(a.i, b.i)
+		a.i = intMod(a.i, b.i)
 	}
 	return a
 }
