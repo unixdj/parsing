@@ -248,19 +248,10 @@ const (
 
 func (cont logicOp) NewFun(left, right fun) fun {
 	return func() (number, error) {
-		a, err := left()
-		if err != nil {
-			return number{}, err
+		if a, err := left(); err != nil || a.Bool() != bool(cont) {
+			return a, err
 		}
-		ans := a.Bool()
-		if ans == bool(cont) {
-			a, err = right()
-			if err != nil {
-				return number{}, err
-			}
-			ans = a.Bool()
-		}
-		return boolToNumber(ans), nil
+		return right()
 	}
 }
 
