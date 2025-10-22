@@ -1,7 +1,9 @@
 module stage6b
 
-go 1.17
+go 1.24.0
 
-require github.com/mattn/go-isatty v0.0.14
+toolchain go1.24.4
 
-require golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
+require github.com/mattn/go-isatty v0.0.20
+
+require golang.org/x/sys v0.37.0 // indirect

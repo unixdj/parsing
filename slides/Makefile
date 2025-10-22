@@ -32,7 +32,10 @@ ${GODIR}/src/github.com/mattn/go-isatty:
 		${GODIR}/src/github.com/mattn/go-isatty
 
 ${GODIR}/src/golang.org/x/sys:
-	git clone https://go.googlesource.com/sys ${GODIR}/src/golang.org/x/sys
+	GOPATH=${GODIR}:"$$GOPATH" go get golang.org/x/sys@v0.37.0
+	mkdir -p ${GODIR}/src/golang.org/x/sys
+	cd ${GODIR}/pkg/mod/golang.org/x/sys@v0.37.0 && \
+		cp -a . ${GODIR}/src/golang.org/x/sys
 
 .SUFFIXES: .png .dot
 
