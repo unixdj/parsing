@@ -28,13 +28,13 @@ package main
 
 top:
         stmts                   { runtime.top = $1 }
-|       CMD                     { runtime.top = append(runtime.top[:0], $1) }
+|       CMD                     { runtime.top = list{$1} }
 
 stmts:
                                 { }
 |       stmts ';'
 |       stmts stmt ';'          { $$ = append($1, $2) }
-|       stmts list              { $$ = append($1, $2...) }
+|       stmts list ';'          { $$ = append($1, $2...) }
 
 list:
         block

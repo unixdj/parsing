@@ -246,6 +246,9 @@ So we have to apply this rule, and then we're really done.
 
 `yacc` compiles grammar descriptions into those.
 
+Just like a regexp engine compiles a regular expression
+into a state machine.
+
 ## Context-sensitive languages
 
 - A **Context-sensitive** grammar can be parsed by all of the above,
@@ -397,8 +400,8 @@ A LALR(1) parser is:
   `a-b-c` means `(a-b)-c`, not `a-(b-c)`.
 - ***1*** token of look-ahead.
 
-Don't ask me about look-ahead, I don't understand it either.
-There's something called LR(1) which also does it,
+Don't ask me about "LA", I don't understand it either.
+There's something called LR(1) which also does look-ahead,
 but allegedly the "LA" is not meaningless.
 
 ## Stage 0: Parsing
@@ -488,13 +491,17 @@ I'm lazy so I wrote a `Makefile`.
 
 .code ../stage0/Makefile /^\$.TARGET/,/^$/
 
-`package main`, blah blah.  Here's a token.  It has a type and a string.
+`package main`, `import`, blah blah.
+Here's a token.  It has a type and a string.
 
 .code ../stage0/main.go /^type token/,/^}/
 
 ## stage 0: code - token
 
 We can print it to see what the lexer does.
+
+`yacc` has two predefined token types:
+0 or `$end` for end of file, and `1` or `$unk` for unknown.
 
 .code ../stage0/main.go /^func.*token.*String/,/^}/
 
@@ -515,8 +522,7 @@ Next we need the tokeniser itself.
 `nextToken` will cut a token out of a string,
 and return the token and the rest of the string.
 
-`yacc` has two predefined token types: 0 or `$end` for end of file,
-and `1` or `$unk` for unknown.  Make the default an `$unk` token of length 1.
+Make the default an `$unk` token of length 1.
 
 .code ../stage0/main.go /^func.*nextToken/,/const bareTokens/-1
 
@@ -542,7 +548,7 @@ trim space from the rest and return both.
 ## stage 0: code - lexer: main loop
 
 Split input into lines.
-Trim space, then scan and send tokens until the line is empty.
+Trim space, then cut and send tokens until the line is empty.
 
 .code ../stage0/main.go /^func.*run/,/nextToken//}/
 
@@ -730,7 +736,7 @@ Let's run it.
 My s00per s1kr1t project had variables and needed to run code.
 After I could print the parse tree,
 I thought about how to write the interpreter,
-and concluded that the simplest thing to do would to assemble one
+and concluded that the simplest thing to do would be to assemble one
 from closures at parse time.
 
 It will also be fast to run, as it's basically native compiled Go code.
@@ -794,7 +800,7 @@ The recipe for `num` is unchanged, but here's how we turn a `num` into a `fun`:
 
 Seems simple enough, right?
 We create an anonymous function that returns an `int`.
-But why not return just `$1` instead?
+But why not just return `$1` instead?
 
 ## stage 2: numbers
 
@@ -822,7 +828,8 @@ Let's see how we implement addition.
 
 .code ../stage2/parse.y /^expr://\+/,/^\|/-1
 
-Other operators are the same, except division that is more elaborate:
+Other operators are the same,
+except division and modulo that are more elaborate:
 
 .code ../stage2/parse.y /^expr2://'\/'//func/,/return x/+1
 
@@ -892,6 +899,8 @@ We want to have Go-like for loops, which come in three varieties:
 
 We don't have `break`, `return` or `exit`,
 so we're only interested in the first two.
+
+## stage 3: statements
 
 Ok, so a block is a statement.
 But we don't want it to appear *anywhere* statements can go.

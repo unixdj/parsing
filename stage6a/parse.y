@@ -31,7 +31,7 @@ top:
         }
 |       CMD
         {
-                runtime.top = append(runtime.top[:0], $1)
+                runtime.top = list{$1}
         }
 
 stmts:
@@ -42,7 +42,7 @@ stmts:
         {
                 $$ = append($1, $2)
         }
-|       stmts block
+|       stmts block ';'
         {
                 $$ = append($1, $2...)
         }

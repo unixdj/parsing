@@ -209,13 +209,10 @@ const (
 )
 
 func (f compareOp) BinOp() binOp {
-	var (
-		bf  binOp
-		not bool
-	)
-	if (f & (f - 1)) != 0 {
+	var bf binOp
+	not := (f & (f - 1)) != 0
+	if not {
 		f ^= Equal | Less | Greater
-		not = true
 	}
 	switch f {
 	case Equal:
@@ -438,14 +435,6 @@ func cmdEOF() (number, error) {
 	return number{}, nil
 }
 
-const (
-	lexOK           = iota                   // operation completed
-	lexParseSuccess = iota | lexParserStatus // parser signalled success
-	lexParseError                            // parser signalled failure
-
-	lexParserStatus = 0x02 // flag for parser status
-)
-
 type token struct {
 	typ int
 	s   string
@@ -455,22 +444,22 @@ type token struct {
 }
 
 type yyLex struct {
-	r    io.Reader   // input
-	tty  bool        // interactive session with a human at a teletype
-	in   chan string // channel for input lines
-	c    chan token  // channel for tokens sent to the parser
-	ps   chan int    // channel for parser status
-	s    string      // input string
-	next token       // next token to send
-	last token       // last token sent
+	r    io.Reader     // input
+	tty  bool          // interactive session with a human at a teletype
+	in   chan string   // channel for input lines
+	c    chan token    // channel for tokens sent to the parser
+	done chan struct{} // channel for parser done signal
+	s    string        // input string
+	next token         // next token to send
+	last token         // last token sent
 }
 
 func newLexer(r io.Reader) *yyLex {
 	yy := yyLex{
-		r:  r,
-		c:  make(chan token),
-		in: make(chan string),
-		ps: make(chan int),
+		r:    r,
+		in:   make(chan string),
+		c:    make(chan token),
+		done: make(chan struct{}),
 	}
 	if f, ok := r.(*os.File); ok {
 		yy.tty = isatty.IsTerminal(f.Fd())
@@ -497,27 +486,26 @@ func (yy *yyLex) Error(s string) {
 	fmt.Fprintln(os.Stderr, s)
 }
 
-func (yy *yyLex) sendToken() int {
+func (yy *yyLex) sendToken() bool {
 	select {
-	case status := <-yy.ps:
-		return status
+	case <-yy.done:
+		return false
 	case yy.c <- yy.next:
 		yy.last = yy.next
-		return lexOK
+		return true
 	}
 }
 
-func (yy *yyLex) send(tok token) int {
+func (yy *yyLex) send(tok token) bool {
 	yy.next = tok
 	return yy.sendToken()
 }
 
-// sendEnd sends an $end token and waits for parser status.
-func (yy *yyLex) sendEnd() int {
-	if status := yy.send(token{}); status != lexOK {
-		return status
+// sendEnd sends an $end token and waits for parser done signal.
+func (yy *yyLex) sendEnd() {
+	if yy.send(token{}) {
+		<-yy.done
 	}
-	return <-yy.ps
 }
 
 func (yy *yyLex) input() {
@@ -535,12 +523,12 @@ func (yy *yyLex) input() {
 	yy.in <- ""
 }
 
-func (yy *yyLex) getLine() int {
+func (yy *yyLex) getLine() bool {
 	select {
-	case status := <-yy.ps:
-		return status
+	case <-yy.done:
+		return false
 	case yy.s = <-yy.in:
-		return lexOK
+		return true
 	}
 }
 
@@ -597,21 +585,21 @@ func (yy *yyLex) run() {
 		first bool
 	)
 	for {
-		if yy.getLine() != lexOK {
+		if !yy.getLine() {
 			goto reset
 		} else if yy.s == "" {
 			break
 		}
 		first = true
 		for yy.nextToken() {
-			for yy.sendToken() != lexOK {
+			for !yy.sendToken() {
 				/*
 				 * when sending the first token in an input
 				 * line fails, it means the error is on the
 				 * previous line.  if in an interactive
 				 * session, reset depth and try sending again.
 				 */
-				if yy.tty && first {
+				if first && yy.tty {
 					depth = 0
 					continue
 				}
@@ -620,8 +608,8 @@ func (yy *yyLex) run() {
 			}
 			switch yy.last.typ {
 			case 0, 1:
-				// sent $end or $unk: wait for status and reset
-				<-yy.ps
+				// sent $end or $unk: wait for done and reset
+				<-yy.done
 				goto reset
 			case '{':
 				depth++
@@ -639,7 +627,7 @@ func (yy *yyLex) run() {
 			// no semicolon needed
 		default:
 			// inject semicolon at EOL
-			if yy.send(token{typ: ';'}) != lexOK {
+			if !yy.send(token{typ: ';'}) {
 				goto reset
 			}
 		}
@@ -668,13 +656,12 @@ func (yy *yyLex) parse() {
 	go yy.input()
 	go yy.run()
 	for !runtime.eof {
-		status := yyParse(yy)
-		if status == 0 {
+		if yyParse(yy) == 0 {
 			if err := runtime.top.Run(); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 			}
 		}
-		yy.ps <- status | lexParserStatus
+		yy.done <- struct{}{}
 	}
 }
 
