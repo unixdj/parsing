@@ -902,6 +902,17 @@ and define the `list` rule.
 
 The short `for` loop will stay under `stmt` to avoid allocating a `list`.
 
+## stage 6: top
+
+Now that we have `list.NewFun`, and given that `CMD` is already a `fun`,
+we can redefine `runtime.top` as a `fun`:
+
+.code ../stage6/main.go /var runtime/,/^}$/
+
+And rewrite the `top` rule:
+
+.code ../stage6/parse.y /^top:$/,+1/^$/
+
 ## stage 6: numbers
 
 The only rules with multi-line code blocks that remain in `parse.y`
@@ -909,6 +920,10 @@ are of `%type <num>`.
 Lets add some convenience functions, and we're done.
 
 .code ../stage6/main.go /func.*number.*NewFun/,/func.*number.*RunUnary//^}$/
+
+## stage 6: parse.y: prologue and lexer type
+
+Here's the complete parser file.
 
 .code ../stage6/parse.y ,/^%token/-1
 

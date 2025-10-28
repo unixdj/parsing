@@ -27,8 +27,8 @@ package main
 %%
 
 top:
-        stmts                   { runtime.top = $1 }
-|       CMD                     { runtime.top = list{$1} }
+        stmts                   { runtime.top = $1.NewFun() }
+|       CMD                     { runtime.top = $1 }
 
 stmts:
                                 { }

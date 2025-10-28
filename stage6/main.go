@@ -423,7 +423,7 @@ func (vl varMap) NewSet(s string, f fun) fun {
 }
 
 var runtime = struct {
-	top  list
+	top  fun
 	vars varMap
 	eof  bool
 }{
@@ -657,7 +657,7 @@ func (yy *yyLex) parse() {
 	go yy.run()
 	for !runtime.eof {
 		if yyParse(yy) == 0 {
-			if err := runtime.top.Run(); err != nil {
+			if _, err := runtime.top(); err != nil {
 				fmt.Fprintln(os.Stderr, err)
 			}
 		}
