@@ -395,8 +395,10 @@ func (l list) Run() error {
 }
 
 func (l list) NewFun() fun {
-	return func() (number, error) {
-		return number{}, l.Run()
+	if len(l) == 1 {
+		return l[0]
+	} else {
+		return func() (number, error) { return number{}, l.Run() }
 	}
 }
 
